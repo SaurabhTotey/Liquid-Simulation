@@ -5,12 +5,10 @@
 [sub_resource type="CircleShape2D" id=1]
 radius = 5.0
 
-[node name="WaterParticle" type="Node2D"]
+[node name="Body" type="RigidBody2D"]
+
+[node name="Collider" type="CollisionShape2D" parent="."]
+shape = SubResource( 1 )
 
 [node name="Appearance" type="Sprite" parent="."]
 texture = ExtResource( 1 )
-
-[node name="Body" type="RigidBody2D" parent="."]
-
-[node name="Collider" type="CollisionShape2D" parent="Body"]
-shape = SubResource( 1 )
