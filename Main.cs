@@ -20,11 +20,10 @@ public class Main : Control {
 
 	/**
 	 * Handles inputs for the simulation
-	 * TODO: use keymappings
 	 */
-	public override void _Process(float delta) {
+	public override void _Input(InputEvent inputEvent) {
 		//Adds a water particle to the mouse's position if the left mouse button is pressed
-		if (Input.IsMouseButtonPressed(1)) {
+		if (Input.IsActionPressed("add_water_particle")) {
 			var waterParticleInstance = (Node2D) this._waterParticleScene.Instance();
 			waterParticleInstance.Position = this.GetViewport().GetMousePosition();
 			this.AddChild(waterParticleInstance);
@@ -32,7 +31,7 @@ public class Main : Control {
 
 		//If the right mouse button is being pressed, creates a blocker from the start of the press to the end of the press
 		//TODO: draw blockers so that they are visible
-		if (Input.IsMouseButtonPressed(2)) {
+		if (Input.IsActionPressed("add_blocker")) {
 			if (this._blockerSegmentBeingPlaced == null) {
 				this._blockerSegmentBeingPlaced = new SegmentShape2D {
 					A = this.GetViewport().GetMousePosition(),
@@ -53,7 +52,7 @@ public class Main : Control {
 		}
 
 		//Removes all children if the escape key is pressed
-		if (Input.IsKeyPressed(16777217)) {
+		if (Input.IsActionPressed("clear_everything")) {
 			foreach (var child in this.GetChildren()) {
 				this.RemoveChild((Node) child);
 			}
