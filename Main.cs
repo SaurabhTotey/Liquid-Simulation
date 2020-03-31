@@ -27,21 +27,10 @@ public class Main : Control {
 
 	/**
 	 * Handles attraction between water particles
-	 * Currently is inefficient
+	 * TODO: check out https://www.researchgate.net/publication/220789321_Particle-based_viscoelastic_fluid_simulation
 	 */
 	public override void _PhysicsProcess(float delta) {
-		foreach (var p1 in this._allWaterParticles) {
-			foreach (var p2 in this._allWaterParticles) {
-				if (p2 == p1) { //TODO: also continue if the particles cannot see each other
-					continue;
-				}
-
-				var positionDifference = p1.Position - p2.Position;
-				var directionVector = positionDifference.Normalized();
-				var squaredDistance = positionDifference.LengthSquared();
-				p2.AddCentralForce(2 * directionVector / squaredDistance); //TODO: make this force repulsive if p1 is in a cone above p2
-			}
-		}
+		base._PhysicsProcess(delta);
 	}
 
 	/**
