@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 
 /**
@@ -10,6 +11,9 @@ public class Main : Control {
 
 	//The user can place 'blockers', which are static segments that interact with the water; this is the blocker that is currently being placed
 	private SegmentShape2D _blockerSegmentBeingPlaced;
+
+	//A list of all blockers so that they can be drawn
+	private readonly List<SegmentShape2D> _allBlockers = new List<SegmentShape2D>();
 
 	/**
 	 * Gets the WaterParticle scene as a packed scene on startup because it will be loaded many times
@@ -30,7 +34,6 @@ public class Main : Control {
 		}
 
 		//If the right mouse button is being pressed, creates a blocker from the start of the press to the end of the press
-		//TODO: draw blockers so that they are visible
 		if (Input.IsActionPressed("add_blocker")) {
 			if (this._blockerSegmentBeingPlaced == null) {
 				this._blockerSegmentBeingPlaced = new SegmentShape2D {
@@ -42,13 +45,17 @@ public class Main : Control {
 					Shape = this._blockerSegmentBeingPlaced
 				});
 				this.AddChild(body);
+				this._allBlockers.Add(this._blockerSegmentBeingPlaced);
+				this.Update();
 			}
 			else {
 				this._blockerSegmentBeingPlaced.B = this.GetViewport().GetMousePosition();
+				this.Update();
 			}
 		}
 		else {
 			this._blockerSegmentBeingPlaced = null;
+			this.Update();
 		}
 
 		//Removes all children if the escape key is pressed
@@ -56,7 +63,18 @@ public class Main : Control {
 			foreach (var child in this.GetChildren()) {
 				this.RemoveChild((Node) child);
 			}
+			this._allBlockers.Clear();
+			this.Update();
 		}
+	}
+
+	/**
+	 * Draws all blockers
+	 */
+	public override void _Draw() {
+		this._allBlockers.ForEach(segment => {
+			this.DrawLine(segment.A, segment.B, Colors.Black);
+		});
 	}
 
 }
