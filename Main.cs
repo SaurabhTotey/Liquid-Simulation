@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 
 /**
@@ -12,9 +13,9 @@ public class Main : Control {
 	//The user can place 'blockers', which are static segments that interact with the water; this is the blocker that is currently being placed
 	private SegmentShape2D _blockerSegmentBeingPlaced;
 
-	//A list of all water particles so that they can exert forces on each other
-	private readonly List<RigidBody2D> _allWaterParticles = new List<RigidBody2D>();
-	
+	//A list of all water particles so that they can have their physics controlled
+	private readonly List<KinematicBody2D> _allWaterParticles = new List<KinematicBody2D>();
+
 	//A list of all blockers so that they can be drawn
 	private readonly List<SegmentShape2D> _allBlockers = new List<SegmentShape2D>();
 
@@ -26,18 +27,31 @@ public class Main : Control {
 	}
 
 	/**
-	 * Handles attraction between water particles
-	 * TODO: check out https://www.researchgate.net/publication/220789321_Particle-based_viscoelastic_fluid_simulation
+	 * Manages the particles' physics
+	 * TODO: implement https://www.researchgate.net/publication/220789321_Particle-based_viscoelastic_fluid_simulation
 	 */
 	public override void _PhysicsProcess(float delta) {
-		base._PhysicsProcess(delta);
+		//TODO: Apply gravity to each particle
+		//TODO: read about and then implement viscosity impulses
+		//TODO: save each particle's current position and advance it to its forward euler's method velocity-based predicted position
+		//TODO: read about and then implement adding and removing springs between particles
+		//TODO: read about adjust particle positions based on spring positions
+		//TODO: read about and then implement double-density relaxation
+		//TODO: read about and then decide how to handle collisions: see what the paper does and figure out what Godot has and decide how to proceed
+		//TODO: set each particle's velocity to be the difference in its position divided by delta
 	}
 
 	/**
-	 * Removes particles from the list of interacting particles if their center is out of bounds
+	 * Removes particles from the scene if they are out of bounds
 	 */
 	public override void _Process(float delta) {
-		this._allWaterParticles.RemoveAll(waterParticle => !this.GetViewportRect().HasPoint(waterParticle.Position));
+		foreach (var waterParticle in from waterParticle in this._allWaterParticles
+			let waterParticleRect = new Rect2(waterParticle.Position, 10, 10)
+			where !this.GetViewportRect().Encloses(waterParticleRect)
+			select waterParticle) {
+			this._allWaterParticles.Remove(waterParticle);
+			this.RemoveChild(waterParticle);
+		}
 	}
 
 	/**
@@ -49,7 +63,7 @@ public class Main : Control {
 			var waterParticleInstance = (Node2D) this._waterParticleScene.Instance();
 			waterParticleInstance.Position = this.GetViewport().GetMousePosition();
 			this.AddChild(waterParticleInstance);
-			this._allWaterParticles.Add((RigidBody2D) waterParticleInstance);
+			this._allWaterParticles.Add((KinematicBody2D) waterParticleInstance);
 		}
 
 		//If the right mouse button is being pressed, creates a blocker from the start of the press to the end of the press
@@ -82,6 +96,7 @@ public class Main : Control {
 			foreach (var child in this.GetChildren()) {
 				this.RemoveChild((Node) child);
 			}
+
 			this._allWaterParticles.Clear();
 			this._allBlockers.Clear();
 			this.Update();
@@ -92,9 +107,7 @@ public class Main : Control {
 	 * Draws all blockers
 	 */
 	public override void _Draw() {
-		this._allBlockers.ForEach(segment => {
-			this.DrawLine(segment.A, segment.B, Colors.Black);
-		});
+		this._allBlockers.ForEach(segment => { this.DrawLine(segment.A, segment.B, Colors.Black); });
 	}
 
 }
