@@ -1,11 +1,13 @@
-[gd_scene load_steps=3 format=2]
+[gd_scene load_steps=4 format=2]
 
 [ext_resource path="res://blue.png" type="Texture" id=1]
+[ext_resource path="res://WaterParticle.cs" type="Script" id=2]
 
 [sub_resource type="CircleShape2D" id=1]
 radius = 5.0
 
 [node name="Body" type="KinematicBody2D"]
+script = ExtResource( 2 )
 
 [node name="Collider" type="CollisionShape2D" parent="."]
 shape = SubResource( 1 )

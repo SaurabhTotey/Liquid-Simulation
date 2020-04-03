@@ -14,7 +14,7 @@ public class Main : Control {
 	private SegmentShape2D _blockerSegmentBeingPlaced;
 
 	//A list of all water particles so that they can have their physics controlled
-	private readonly List<KinematicBody2D> _allWaterParticles = new List<KinematicBody2D>();
+	private readonly List<WaterParticle> _allWaterParticles = new List<WaterParticle>();
 
 	//A list of all blockers so that they can be drawn
 	private readonly List<SegmentShape2D> _allBlockers = new List<SegmentShape2D>();
@@ -31,9 +31,20 @@ public class Main : Control {
 	 * TODO: implement https://www.researchgate.net/publication/220789321_Particle-based_viscoelastic_fluid_simulation
 	 */
 	public override void _PhysicsProcess(float delta) {
-		//TODO: Apply gravity to each particle
+		//Applies gravity to each particle
+		foreach (var waterParticle in this._allWaterParticles) {
+			waterParticle.Velocity.y += 1000f * delta;
+		}
+
 		//TODO: read about and then implement viscosity impulses
-		//TODO: save each particle's current position and advance it to its forward euler's method velocity-based predicted position
+		
+		//Saves each particle's current position and advances it to its forward euler's method velocity-based predicted position
+		var particleToOldPosition = new Dictionary<WaterParticle, Vector2>();
+		foreach (var waterParticle in this._allWaterParticles) {
+			particleToOldPosition.Add(waterParticle, new Vector2(waterParticle.Position));
+			waterParticle.Position += waterParticle.Velocity * delta; //TODO: decide if it is better to do MoveAndSlide or MoveAndCollide instead
+		}
+		
 		//TODO: read about and then implement adding and removing springs between particles
 		//TODO: read about adjust particle positions based on spring positions
 		//TODO: read about and then implement double-density relaxation
@@ -45,12 +56,9 @@ public class Main : Control {
 	 * Removes particles from the scene if they are out of bounds
 	 */
 	public override void _Process(float delta) {
-		foreach (var waterParticle in from waterParticle in this._allWaterParticles
-			let waterParticleRect = new Rect2(waterParticle.Position, 10, 10)
-			where !this.GetViewportRect().Encloses(waterParticleRect)
-			select waterParticle) {
-			this._allWaterParticles.Remove(waterParticle);
-			this.RemoveChild(waterParticle);
+		foreach (var particleToRemove in this._allWaterParticles.Where(waterParticle => !this.GetViewportRect().Encloses(new Rect2(waterParticle.Position, 10, 10))).ToList()) {
+			this._allWaterParticles.Remove(particleToRemove);
+			this.RemoveChild(particleToRemove);
 		}
 	}
 
@@ -63,7 +71,7 @@ public class Main : Control {
 			var waterParticleInstance = (Node2D) this._waterParticleScene.Instance();
 			waterParticleInstance.Position = this.GetViewport().GetMousePosition();
 			this.AddChild(waterParticleInstance);
-			this._allWaterParticles.Add((KinematicBody2D) waterParticleInstance);
+			this._allWaterParticles.Add((WaterParticle) waterParticleInstance);
 		}
 
 		//If the right mouse button is being pressed, creates a blocker from the start of the press to the end of the press
