@@ -7,6 +7,9 @@ using Godot;
  */
 public class Main : Control {
 
+	//How much gravity the water particles experience
+	[Export] public float Gravity = 1000f;
+
 	//The packed scene for the water particle because it is potentially instanced many times
 	private PackedScene _waterParticleScene;
 
@@ -33,30 +36,35 @@ public class Main : Control {
 	public override void _PhysicsProcess(float delta) {
 		//Applies gravity to each particle
 		foreach (var waterParticle in this._allWaterParticles) {
-			waterParticle.Velocity.y += 1000f * delta;
+			waterParticle.Velocity.y += this.Gravity * delta;
 		}
 
 		//TODO: read about and then implement viscosity impulses
-		
+
 		//Saves each particle's current position and advances it to its forward euler's method velocity-based predicted position
 		var particleToOldPosition = new Dictionary<WaterParticle, Vector2>();
 		foreach (var waterParticle in this._allWaterParticles) {
 			particleToOldPosition.Add(waterParticle, new Vector2(waterParticle.Position));
 			waterParticle.Position += waterParticle.Velocity * delta; //TODO: decide if it is better to do MoveAndSlide or MoveAndCollide instead
 		}
-		
+
 		//TODO: read about and then implement adding and removing springs between particles
 		//TODO: read about adjust particle positions based on spring positions
 		//TODO: read about and then implement double-density relaxation
 		//TODO: read about and then decide how to handle collisions: see what the paper does and figure out what Godot has and decide how to proceed
-		//TODO: set each particle's velocity to be the difference in its position divided by delta
+
+		//Sets each particle's velocity to be the difference in its position divided by delta
+		foreach (var waterParticle in this._allWaterParticles) {
+			waterParticle.Velocity = (waterParticle.Position - particleToOldPosition[waterParticle]) / delta;
+		}
 	}
 
 	/**
 	 * Removes particles from the scene if they are out of bounds
 	 */
 	public override void _Process(float delta) {
-		foreach (var particleToRemove in this._allWaterParticles.Where(waterParticle => !this.GetViewportRect().Encloses(new Rect2(waterParticle.Position, 10, 10))).ToList()) {
+		foreach (var particleToRemove in this._allWaterParticles.Where(waterParticle =>
+			!this.GetViewportRect().Encloses(new Rect2(waterParticle.Position, 10, 10))).ToList()) {
 			this._allWaterParticles.Remove(particleToRemove);
 			this.RemoveChild(particleToRemove);
 		}
