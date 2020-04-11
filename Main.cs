@@ -32,6 +32,7 @@ public class Main : Control {
 	/**
 	 * Manages the particles' physics
 	 * TODO: implement https://www.researchgate.net/publication/220789321_Particle-based_viscoelastic_fluid_simulation
+	 * TODO: decide if it is better to, instead of setting Position for WaterParticle directly, set a different field and then MoveAndCollide to the new position
 	 */
 	public override void _PhysicsProcess(float delta) {
 		//Applies gravity to each particle
@@ -42,10 +43,9 @@ public class Main : Control {
 		//TODO: read about and then implement viscosity impulses
 
 		//Saves each particle's current position and advances it to its forward euler's method velocity-based predicted position
-		var particleToOldPosition = new Dictionary<WaterParticle, Vector2>();
 		foreach (var waterParticle in this._allWaterParticles) {
-			particleToOldPosition.Add(waterParticle, new Vector2(waterParticle.Position));
-			waterParticle.Position += waterParticle.Velocity * delta; //TODO: decide if it is better to do MoveAndSlide or MoveAndCollide instead
+			waterParticle.OldPosition = new Vector2(waterParticle.Position);
+			waterParticle.Position += waterParticle.Velocity * delta;
 		}
 
 		//TODO: read about and then implement adding and removing springs between particles
@@ -55,7 +55,7 @@ public class Main : Control {
 
 		//Sets each particle's velocity to be the difference in its position divided by delta
 		foreach (var waterParticle in this._allWaterParticles) {
-			waterParticle.Velocity = (waterParticle.Position - particleToOldPosition[waterParticle]) / delta;
+			waterParticle.Velocity = (waterParticle.Position - waterParticle.OldPosition) / delta;
 		}
 	}
 
