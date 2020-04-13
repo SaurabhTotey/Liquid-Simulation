@@ -64,9 +64,6 @@ public class Main : Control {
 			waterParticle.Position += waterParticle.Velocity * delta;
 		}
 
-		//TODO: read about and then implement adding and removing springs between particles
-		//TODO: read about adjust particle positions based on spring positions
-
 		//Finds particle neighbors for each particle
 		for (var i = 1; i < this._allWaterParticles.Count; i++) {
 			var particle1 = this._allWaterParticles[i];
@@ -81,6 +78,9 @@ public class Main : Control {
 				particle2.NeighborToOffset.Add(particle1, -offset);
 			}
 		}
+
+		//TODO: read about and then implement adding and removing springs between particles
+		//TODO: read about and adjust particle positions based on spring positions
 
 		//Applies double-density relaxations
 		foreach (var waterParticle in this._allWaterParticles) {
@@ -97,9 +97,9 @@ public class Main : Control {
 			foreach (var neighborToOffset in waterParticle.NeighborToOffset) {
 				var inverseNormalizedDistance = 1 - neighborToOffset.Value.Length() / this.InteractionRadius;
 				var displacementTerm = (float) (Math.Pow(delta, 2) *
-					                       (pressure * inverseNormalizedDistance +
-					                        nearPressure * Math.Pow(inverseNormalizedDistance, 2)) / 2f) *
-				                       neighborToOffset.Value;
+										   (pressure * inverseNormalizedDistance +
+											nearPressure * Math.Pow(inverseNormalizedDistance, 2)) / 2f) *
+									   neighborToOffset.Value;
 				neighborToOffset.Key.Position += displacementTerm;
 				selfDisplacement -= displacementTerm;
 			}

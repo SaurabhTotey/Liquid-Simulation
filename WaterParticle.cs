@@ -4,6 +4,7 @@ using Godot;
 /**
  * A class that represents the water particle: only exists to store state
  * Doesn't handle any of the math itself and is instead managed by Main.cs
+ * TODO: rename to LiquidParticle (make sure to do this for the Godot scene as well)
  */
 public class WaterParticle : KinematicBody2D {
 
