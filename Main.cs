@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Godot;
@@ -9,6 +10,18 @@ public class Main : Control {
 
 	//How much gravity the water particles experience
 	[Export] public float Gravity = 1000f;
+
+	//The maximum distance between particles before they stop affecting each other
+	[Export] public float InteractionRadius = 30f;
+
+	//The default 'density' that particles try and maintain
+	[Export] public float RestDensity = 20f;
+
+	//TODO: understand
+	[Export] public float Stiffness = 1f;
+
+	//TODO: understand
+	[Export] public float NearStiffness = 1f;
 
 	//The packed scene for the water particle because it is potentially instanced many times
 	private PackedScene _waterParticleScene;
@@ -35,9 +48,12 @@ public class Main : Control {
 	 * TODO: decide if it is better to, instead of setting Position for WaterParticle directly, set a different field and then MoveAndCollide to the new position
 	 */
 	public override void _PhysicsProcess(float delta) {
-		//Applies gravity to each particle
+		//Applies gravity to each particle and handles resetting particles from previous pass
 		foreach (var waterParticle in this._allWaterParticles) {
 			waterParticle.Velocity.y += this.Gravity * delta;
+			waterParticle.NeighborToOffset.Clear();
+			waterParticle.Density = 0;
+			waterParticle.NearDensity = 0;
 		}
 
 		//TODO: read about and then implement viscosity impulses
@@ -50,7 +66,47 @@ public class Main : Control {
 
 		//TODO: read about and then implement adding and removing springs between particles
 		//TODO: read about adjust particle positions based on spring positions
-		//TODO: read about and then implement double-density relaxation
+
+		//Finds particle neighbors for each particle
+		for (var i = 1; i < this._allWaterParticles.Count; i++) {
+			var particle1 = this._allWaterParticles[i];
+			for (var j = 0; j < i; j++) {
+				var particle2 = this._allWaterParticles[j];
+				var offset = particle2.Position - particle1.Position;
+				if (offset.LengthSquared() >= Math.Pow(this.InteractionRadius, 2)) {
+					continue;
+				}
+
+				particle1.NeighborToOffset.Add(particle2, offset);
+				particle2.NeighborToOffset.Add(particle1, -offset);
+			}
+		}
+
+		//Applies double-density relaxations
+		foreach (var waterParticle in this._allWaterParticles) {
+			foreach (var inverseNormalizedDistance in waterParticle.NeighborToOffset.Select(neighborToOffset =>
+				1 - neighborToOffset.Value.Length() / this.InteractionRadius)) {
+				waterParticle.Density += (float) Math.Pow(inverseNormalizedDistance, 2);
+				waterParticle.NearDensity += (float) Math.Pow(inverseNormalizedDistance, 3);
+			}
+
+			var pressure = this.Stiffness * (waterParticle.Density - this.RestDensity);
+			var nearPressure = this.NearStiffness * waterParticle.NearDensity;
+			var selfDisplacement = Vector2.Zero;
+
+			foreach (var neighborToOffset in waterParticle.NeighborToOffset) {
+				var inverseNormalizedDistance = 1 - neighborToOffset.Value.Length() / this.InteractionRadius;
+				var displacementTerm = (float) (Math.Pow(delta, 2) *
+					                       (pressure * inverseNormalizedDistance +
+					                        nearPressure * Math.Pow(inverseNormalizedDistance, 2)) / 2f) *
+				                       neighborToOffset.Value;
+				neighborToOffset.Key.Position += displacementTerm;
+				selfDisplacement -= displacementTerm;
+			}
+
+			waterParticle.Position += selfDisplacement;
+		}
+
 		//TODO: read about and then decide how to handle collisions: see what the paper does and figure out what Godot has and decide how to proceed
 
 		//Sets each particle's velocity to be the difference in its position divided by delta
