@@ -2,21 +2,20 @@ using System.Collections.Generic;
 using Godot;
 
 /**
- * A class that represents the water particle: only exists to store state
+ * A class that represents a particle of liquid: only exists to store state
  * Doesn't handle any of the math itself and is instead managed by Main.cs
- * TODO: rename to LiquidParticle (make sure to do this for the Godot scene as well)
  */
-public class WaterParticle : KinematicBody2D {
+public class LiquidParticle : KinematicBody2D {
 
-	//The velocity of the water particle
+	//The velocity of the particle
 	public Vector2 Velocity = new Vector2();
 
-	//The position of the water particle before performing any sort of physics processes on it every step
+	//The position of the particle before performing any sort of physics processes on it every step
 	public Vector2 OldPosition;
-	
+
 	//A mapping of 'neighbor particles' (determined by interaction radius) to a vector pointing from this particle to that neighbor
-	public readonly Dictionary<WaterParticle, Vector2> NeighborToOffset = new Dictionary<WaterParticle, Vector2>();
-	
+	public readonly Dictionary<LiquidParticle, Vector2> NeighborToOffset = new Dictionary<LiquidParticle, Vector2>();
+
 	//The 'density' at this particle: depends on its neighbors
 	public float Density;
 

@@ -5,10 +5,12 @@ using Godot;
 
 /**
  * All the code for the liquid simulation
+ * Liquid is simulated in Lagrangian method by using discrete liquid particles
+ * TODO: RestDensity, Stiffness, and NearStiffness seem like they would be better as properties of LiquidParticle
  */
 public class Main : Control {
 
-	//How much gravity the water particles experience
+	//How much gravity the particles experience
 	[Export] public float Gravity = 1000f;
 
 	//The maximum distance between particles before they stop affecting each other
@@ -23,52 +25,52 @@ public class Main : Control {
 	//TODO: understand
 	[Export] public float NearStiffness = 1f;
 
-	//The packed scene for the water particle because it is potentially instanced many times
-	private PackedScene _waterParticleScene;
+	//The packed scene for the liquid particle because it is potentially instanced many times
+	private PackedScene _liquidParticleScene;
 
-	//The user can place 'blockers', which are static segments that interact with the water; this is the blocker that is currently being placed
+	//The user can place 'blockers', which are static segments that interact with the liquid; this is the blocker that is currently being placed
 	private SegmentShape2D _blockerSegmentBeingPlaced;
 
-	//A list of all water particles so that they can have their physics controlled
-	private readonly List<WaterParticle> _allWaterParticles = new List<WaterParticle>();
+	//A list of all liquid particles so that they can have their physics controlled
+	private readonly List<LiquidParticle> _liquidParticles = new List<LiquidParticle>();
 
 	//A list of all blockers so that they can be drawn
-	private readonly List<SegmentShape2D> _allBlockers = new List<SegmentShape2D>();
+	private readonly List<SegmentShape2D> _blockers = new List<SegmentShape2D>();
 
 	/**
-	 * Gets the WaterParticle scene as a packed scene on startup because it will be loaded many times
+	 * Gets the LiquidParticle scene as a packed scene on startup because it will be loaded many times
 	 */
 	public override void _Ready() {
-		this._waterParticleScene = ResourceLoader.Load<PackedScene>("res://WaterParticle.tscn");
+		this._liquidParticleScene = ResourceLoader.Load<PackedScene>("res://LiquidParticle.tscn");
 	}
 
 	/**
 	 * Manages the particles' physics
 	 * TODO: implement https://www.researchgate.net/publication/220789321_Particle-based_viscoelastic_fluid_simulation
-	 * TODO: decide if it is better to, instead of setting Position for WaterParticle directly, set a different field and then MoveAndCollide to the new position
+	 * TODO: decide if it is better to, instead of setting Position for LiquidParticle directly, set a different field and then MoveAndCollide to the new position
 	 */
 	public override void _PhysicsProcess(float delta) {
 		//Applies gravity to each particle and handles resetting particles from previous pass
-		foreach (var waterParticle in this._allWaterParticles) {
-			waterParticle.Velocity.y += this.Gravity * delta;
-			waterParticle.NeighborToOffset.Clear();
-			waterParticle.Density = 0;
-			waterParticle.NearDensity = 0;
+		foreach (var liquidParticle in this._liquidParticles) {
+			liquidParticle.Velocity.y += this.Gravity * delta;
+			liquidParticle.NeighborToOffset.Clear();
+			liquidParticle.Density = 0;
+			liquidParticle.NearDensity = 0;
 		}
 
 		//TODO: read about and then implement viscosity impulses
 
 		//Saves each particle's current position and advances it to its forward euler's method velocity-based predicted position
-		foreach (var waterParticle in this._allWaterParticles) {
-			waterParticle.OldPosition = new Vector2(waterParticle.Position);
-			waterParticle.Position += waterParticle.Velocity * delta;
+		foreach (var liquidParticle in this._liquidParticles) {
+			liquidParticle.OldPosition = new Vector2(liquidParticle.Position);
+			liquidParticle.Position += liquidParticle.Velocity * delta;
 		}
 
 		//Finds particle neighbors for each particle
-		for (var i = 1; i < this._allWaterParticles.Count; i++) {
-			var particle1 = this._allWaterParticles[i];
+		for (var i = 1; i < this._liquidParticles.Count; i++) {
+			var particle1 = this._liquidParticles[i];
 			for (var j = 0; j < i; j++) {
-				var particle2 = this._allWaterParticles[j];
+				var particle2 = this._liquidParticles[j];
 				var offset = particle2.Position - particle1.Position;
 				if (offset.LengthSquared() >= Math.Pow(this.InteractionRadius, 2)) {
 					continue;
@@ -83,35 +85,35 @@ public class Main : Control {
 		//TODO: read about and adjust particle positions based on spring positions
 
 		//Applies double-density relaxations
-		foreach (var waterParticle in this._allWaterParticles) {
-			foreach (var inverseNormalizedDistance in waterParticle.NeighborToOffset.Select(neighborToOffset =>
+		foreach (var liquidParticle in this._liquidParticles) {
+			foreach (var inverseNormalizedDistance in liquidParticle.NeighborToOffset.Select(neighborToOffset =>
 				1 - neighborToOffset.Value.Length() / this.InteractionRadius)) {
-				waterParticle.Density += (float) Math.Pow(inverseNormalizedDistance, 2);
-				waterParticle.NearDensity += (float) Math.Pow(inverseNormalizedDistance, 3);
+				liquidParticle.Density += (float) Math.Pow(inverseNormalizedDistance, 2);
+				liquidParticle.NearDensity += (float) Math.Pow(inverseNormalizedDistance, 3);
 			}
 
-			var pressure = this.Stiffness * (waterParticle.Density - this.RestDensity);
-			var nearPressure = this.NearStiffness * waterParticle.NearDensity;
+			var pressure = this.Stiffness * (liquidParticle.Density - this.RestDensity);
+			var nearPressure = this.NearStiffness * liquidParticle.NearDensity;
 			var selfDisplacement = Vector2.Zero;
 
-			foreach (var neighborToOffset in waterParticle.NeighborToOffset) {
+			foreach (var neighborToOffset in liquidParticle.NeighborToOffset) {
 				var inverseNormalizedDistance = 1 - neighborToOffset.Value.Length() / this.InteractionRadius;
 				var displacementTerm = (float) (Math.Pow(delta, 2) *
-										   (pressure * inverseNormalizedDistance +
-											nearPressure * Math.Pow(inverseNormalizedDistance, 2)) / 2f) *
-									   neighborToOffset.Value;
+					                       (pressure * inverseNormalizedDistance +
+					                        nearPressure * Math.Pow(inverseNormalizedDistance, 2)) / 2f) *
+				                       neighborToOffset.Value;
 				neighborToOffset.Key.Position += displacementTerm;
 				selfDisplacement -= displacementTerm;
 			}
 
-			waterParticle.Position += selfDisplacement;
+			liquidParticle.Position += selfDisplacement;
 		}
 
 		//TODO: read about and then decide how to handle collisions: see what the paper does and figure out what Godot has and decide how to proceed
 
 		//Sets each particle's velocity to be the difference in its position divided by delta
-		foreach (var waterParticle in this._allWaterParticles) {
-			waterParticle.Velocity = (waterParticle.Position - waterParticle.OldPosition) / delta;
+		foreach (var liquidParticle in this._liquidParticles) {
+			liquidParticle.Velocity = (liquidParticle.Position - liquidParticle.OldPosition) / delta;
 		}
 	}
 
@@ -119,9 +121,9 @@ public class Main : Control {
 	 * Removes particles from the scene if they are out of bounds
 	 */
 	public override void _Process(float delta) {
-		foreach (var particleToRemove in this._allWaterParticles.Where(waterParticle =>
-			!this.GetViewportRect().Encloses(new Rect2(waterParticle.Position, 10, 10))).ToList()) {
-			this._allWaterParticles.Remove(particleToRemove);
+		foreach (var particleToRemove in this._liquidParticles.Where(liquidParticle =>
+			!this.GetViewportRect().Encloses(new Rect2(liquidParticle.Position, 10, 10))).ToList()) {
+			this._liquidParticles.Remove(particleToRemove);
 			this.RemoveChild(particleToRemove);
 		}
 	}
@@ -130,12 +132,12 @@ public class Main : Control {
 	 * Handles inputs for the simulation
 	 */
 	public override void _Input(InputEvent inputEvent) {
-		//Adds a water particle to the mouse's position if the left mouse button is pressed
-		if (Input.IsActionPressed("add_water_particle")) {
-			var waterParticleInstance = (Node2D) this._waterParticleScene.Instance();
-			waterParticleInstance.Position = this.GetViewport().GetMousePosition();
-			this.AddChild(waterParticleInstance);
-			this._allWaterParticles.Add((WaterParticle) waterParticleInstance);
+		//Adds a liquid particle to the mouse's position if the left mouse button is pressed
+		if (Input.IsActionPressed("add_liquid_particle")) {
+			var liquidParticleInstance = (Node2D) this._liquidParticleScene.Instance();
+			liquidParticleInstance.Position = this.GetViewport().GetMousePosition();
+			this.AddChild(liquidParticleInstance);
+			this._liquidParticles.Add((LiquidParticle) liquidParticleInstance);
 		}
 
 		//If the right mouse button is being pressed, creates a blocker from the start of the press to the end of the press
@@ -150,7 +152,7 @@ public class Main : Control {
 					Shape = this._blockerSegmentBeingPlaced
 				});
 				this.AddChild(body);
-				this._allBlockers.Add(this._blockerSegmentBeingPlaced);
+				this._blockers.Add(this._blockerSegmentBeingPlaced);
 				this.Update();
 			}
 			else {
@@ -169,8 +171,8 @@ public class Main : Control {
 				this.RemoveChild((Node) child);
 			}
 
-			this._allWaterParticles.Clear();
-			this._allBlockers.Clear();
+			this._liquidParticles.Clear();
+			this._blockers.Clear();
 			this.Update();
 		}
 	}
@@ -179,7 +181,7 @@ public class Main : Control {
 	 * Draws all blockers
 	 */
 	public override void _Draw() {
-		this._allBlockers.ForEach(segment => { this.DrawLine(segment.A, segment.B, Colors.Black); });
+		this._blockers.ForEach(segment => { this.DrawLine(segment.A, segment.B, Colors.Black); });
 	}
 
 }
