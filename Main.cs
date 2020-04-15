@@ -25,6 +25,12 @@ public class Main : Control {
 	//TODO: understand
 	[Export] public float NearStiffness = 1f;
 
+	//The equilibrium length of a spring between particles if the spring was at rest
+	[Export] public float SpringRestLength = 10f;
+
+	//The spring constant that is symbolized by k in Hooke's Law
+	[Export] public float SpringConstant = 1f;
+
 	//The packed scene for the liquid particle because it is potentially instanced many times
 	private PackedScene _liquidParticleScene;
 
@@ -33,6 +39,9 @@ public class Main : Control {
 
 	//A list of all liquid particles so that they can have their physics controlled
 	private readonly List<LiquidParticle> _liquidParticles = new List<LiquidParticle>();
+
+	//A list of all springs between particles
+	private readonly List<Spring> _springs = new List<Spring>();
 
 	//A list of all blockers so that they can be drawn
 	private readonly List<SegmentShape2D> _blockers = new List<SegmentShape2D>();
@@ -82,7 +91,16 @@ public class Main : Control {
 		}
 
 		//TODO: read about and then implement adding and removing springs between particles
-		//TODO: read about and adjust particle positions based on spring positions
+
+		//Applies displacements to particles based on spring forces for springs that are between particles
+		foreach (var spring in this._springs) {
+			var offset = spring.A.NeighborToOffset[spring.B];
+			var displacementTerm = (float) (Math.Pow(delta, 2) * this.SpringConstant *
+											(1 - this.SpringRestLength / this.InteractionRadius) *
+											(this.SpringRestLength - offset.Length()) / 2f) * offset;
+			spring.A.Position -= displacementTerm;
+			spring.B.Position += displacementTerm;
+		}
 
 		//Applies double-density relaxations
 		foreach (var liquidParticle in this._liquidParticles) {
@@ -99,9 +117,9 @@ public class Main : Control {
 			foreach (var neighborToOffset in liquidParticle.NeighborToOffset) {
 				var inverseNormalizedDistance = 1 - neighborToOffset.Value.Length() / this.InteractionRadius;
 				var displacementTerm = (float) (Math.Pow(delta, 2) *
-					                       (pressure * inverseNormalizedDistance +
-					                        nearPressure * Math.Pow(inverseNormalizedDistance, 2)) / 2f) *
-				                       neighborToOffset.Value;
+										   (pressure * inverseNormalizedDistance +
+											nearPressure * Math.Pow(inverseNormalizedDistance, 2)) / 2f) *
+									   neighborToOffset.Value;
 				neighborToOffset.Key.Position += displacementTerm;
 				selfDisplacement -= displacementTerm;
 			}
