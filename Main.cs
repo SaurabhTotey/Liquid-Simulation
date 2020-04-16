@@ -25,11 +25,14 @@ public class Main : Control {
 	//TODO: understand
 	[Export] public float NearStiffness = 1f;
 
-	//The equilibrium length of a spring between particles if the spring was at rest
-	[Export] public float SpringRestLength = 10f;
+	//The default equilibrium length for a spring between particles if the spring was at rest
+	[Export] public float DefaultSpringRestLength = 10f;
 
 	//The spring constant that is symbolized by k in Hooke's Law
 	[Export] public float SpringConstant = 1f;
+	
+	//A constant that controls how much a spring's rest length changes each time-step
+	[Export] public float PlasticityConstant = 5f;
 
 	//The packed scene for the liquid particle because it is potentially instanced many times
 	private PackedScene _liquidParticleScene;
@@ -51,6 +54,7 @@ public class Main : Control {
 	 */
 	public override void _Ready() {
 		this._liquidParticleScene = ResourceLoader.Load<PackedScene>("res://LiquidParticle.tscn");
+		Spring.DefaultRestLength = this.DefaultSpringRestLength;
 	}
 
 	/**
@@ -96,8 +100,8 @@ public class Main : Control {
 		foreach (var spring in this._springs) {
 			var offset = spring.A.NeighborToOffset[spring.B];
 			var displacementTerm = (float) (Math.Pow(delta, 2) * this.SpringConstant *
-											(1 - this.SpringRestLength / this.InteractionRadius) *
-											(this.SpringRestLength - offset.Length()) / 2f) * offset;
+											(1 - spring.RestLength / this.InteractionRadius) *
+											(spring.RestLength - offset.Length()) / 2f) * offset;
 			spring.A.Position -= displacementTerm;
 			spring.B.Position += displacementTerm;
 		}
