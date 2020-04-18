@@ -16,6 +16,9 @@ public class LiquidParticle : KinematicBody2D {
 	//A mapping of 'neighbor particles' (determined by interaction radius) to a vector pointing from this particle to that neighbor
 	public readonly Dictionary<LiquidParticle, Vector2> NeighborToOffset = new Dictionary<LiquidParticle, Vector2>();
 
+	//A mapping of 'neighbor particles' (determined by interaction radius) to a spring connecting this particle to that neighbor
+	public readonly Dictionary<LiquidParticle, Spring> NeighborToSpring = new Dictionary<LiquidParticle, Spring>();
+
 	//The 'density' at this particle: depends on its neighbors
 	public float Density;
 

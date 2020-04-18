@@ -25,14 +25,14 @@ public class Main : Control {
 	//TODO: understand
 	[Export] public float NearStiffness = 1f;
 
-	//The default equilibrium length for a spring between particles if the spring was at rest
-	[Export] public float DefaultSpringRestLength = 10f;
-
 	//The spring constant that is symbolized by k in Hooke's Law
 	[Export] public float SpringConstant = 1f;
-	
+
 	//A constant that controls how much a spring's rest length changes each time-step
 	[Export] public float PlasticityConstant = 5f;
+
+	//A spring's rest-length will only change if the difference between distance and rest-length is larger than this fraction of current rest-length
+	[Export] public float YieldRatio = 0.2f;
 
 	//The packed scene for the liquid particle because it is potentially instanced many times
 	private PackedScene _liquidParticleScene;
@@ -54,7 +54,6 @@ public class Main : Control {
 	 */
 	public override void _Ready() {
 		this._liquidParticleScene = ResourceLoader.Load<PackedScene>("res://LiquidParticle.tscn");
-		Spring.DefaultRestLength = this.DefaultSpringRestLength;
 	}
 
 	/**
@@ -79,7 +78,7 @@ public class Main : Control {
 			liquidParticle.Position += liquidParticle.Velocity * delta;
 		}
 
-		//Finds particle neighbors for each particle
+		//Finds particle neighbors for each particle and adds/adjusts springs
 		for (var i = 1; i < this._liquidParticles.Count; i++) {
 			var particle1 = this._liquidParticles[i];
 			for (var j = 0; j < i; j++) {
@@ -91,17 +90,40 @@ public class Main : Control {
 
 				particle1.NeighborToOffset.Add(particle2, offset);
 				particle2.NeighborToOffset.Add(particle1, -offset);
+
+				Spring spring; //TODO: consider moving this code into a Spring method
+				if (particle1.NeighborToSpring.ContainsKey(particle2)) {
+					spring = particle1.NeighborToSpring[particle2];
+				}
+				else {
+					spring = new Spring(this.InteractionRadius, particle1, particle2);
+					this._springs.Add(spring);
+				}
+
+				var tolerableDeformation = this.YieldRatio * spring.RestLength;
+				var distance = offset.Length();
+				if (distance > spring.RestLength + tolerableDeformation) {
+					spring.RestLength += delta * this.PlasticityConstant *
+										 (distance - spring.RestLength - tolerableDeformation);
+				}
+				else if (distance < spring.RestLength - tolerableDeformation) {
+					spring.RestLength -= delta * this.PlasticityConstant *
+										 (spring.RestLength - distance - tolerableDeformation);
+				}
 			}
 		}
 
-		//TODO: read about and then implement adding and removing springs between particles
+		//Removes springs between particles if they are too far apart; TODO: consider moving into a spring method
+		foreach (var spring in from spring in this._springs let A = spring.A let B = spring.B where (A.Position - B.Position).LengthSquared() > Math.Pow(this.InteractionRadius, 2) select spring) {
+			spring.Remove();
+		}
 
 		//Applies displacements to particles based on spring forces for springs that are between particles
 		foreach (var spring in this._springs) {
-			var offset = spring.A.NeighborToOffset[spring.B];
+			var offset = spring.B.Position - spring.A.Position;
 			var displacementTerm = (float) (Math.Pow(delta, 2) * this.SpringConstant *
-											(1 - spring.RestLength / this.InteractionRadius) *
-											(spring.RestLength - offset.Length()) / 2f) * offset;
+				(1 - spring.RestLength / this.InteractionRadius) *
+				(spring.RestLength - offset.Length()) / 2f) * offset;
 			spring.A.Position -= displacementTerm;
 			spring.B.Position += displacementTerm;
 		}
