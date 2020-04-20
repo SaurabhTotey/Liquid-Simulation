@@ -70,15 +70,7 @@ public class Main : Control {
 			liquidParticle.NearDensity = 0;
 		}
 
-		//TODO: read about and then implement viscosity impulses
-
-		//Saves each particle's current position and advances it to its forward euler's method velocity-based predicted position
-		foreach (var liquidParticle in this._liquidParticles) {
-			liquidParticle.OldPosition = new Vector2(liquidParticle.Position);
-			liquidParticle.Position += liquidParticle.Velocity * delta;
-		}
-
-		//Finds particle neighbors for each particle and adds/adjusts springs
+		//Finds particle neighbors for each particle TODO: consider not storing offset since it changes within this method
 		for (var i = 1; i < this._liquidParticles.Count; i++) {
 			var particle1 = this._liquidParticles[i];
 			for (var j = 0; j < i; j++) {
@@ -90,8 +82,27 @@ public class Main : Control {
 
 				particle1.NeighborToOffset.Add(particle2, offset);
 				particle2.NeighborToOffset.Add(particle1, -offset);
+			}
+		}
 
-				Spring spring; //TODO: consider moving this code into a Spring method
+		//TODO: read about and then implement viscosity impulses
+
+		//Saves each particle's current position and advances it to its forward euler's method velocity-based predicted position
+		foreach (var liquidParticle in this._liquidParticles) {
+			liquidParticle.OldPosition = new Vector2(liquidParticle.Position);
+			liquidParticle.Position += liquidParticle.Velocity * delta;
+		}
+
+		//Adds and adjusts springs TODO: consider moving this code into a Spring method
+		for (var i = 1; i < this._liquidParticles.Count; i++) {
+			var particle1 = this._liquidParticles[i];
+			for (var j = 0; j < i; j++) {
+				var particle2 = this._liquidParticles[j];
+				if (!particle1.NeighborToOffset.ContainsKey(particle2)) {
+					continue;
+				}
+
+				Spring spring;
 				if (particle1.NeighborToSpring.ContainsKey(particle2)) {
 					spring = particle1.NeighborToSpring[particle2];
 				}
@@ -101,7 +112,7 @@ public class Main : Control {
 				}
 
 				var tolerableDeformation = this.YieldRatio * spring.RestLength;
-				var distance = offset.Length();
+				var distance = particle1.NeighborToOffset[particle2].Length();
 				if (distance > spring.RestLength + tolerableDeformation) {
 					spring.RestLength += delta * this.PlasticityConstant *
 										 (distance - spring.RestLength - tolerableDeformation);
@@ -114,7 +125,11 @@ public class Main : Control {
 		}
 
 		//Removes springs between particles if they are too far apart; TODO: consider moving into a spring method
-		foreach (var spring in from spring in this._springs let A = spring.A let B = spring.B where (A.Position - B.Position).LengthSquared() > Math.Pow(this.InteractionRadius, 2) select spring) {
+		foreach (var spring in from spring in this._springs
+			let a = spring.A
+			let b = spring.B
+			where (a.Position - b.Position).LengthSquared() > Math.Pow(this.InteractionRadius, 2)
+			select spring) {
 			spring.Remove();
 		}
 
