@@ -63,10 +63,12 @@ public class Main : Control {
 		if (!particle1.PotentialNeighbors.Contains(particle2)) {
 			return null;
 		}
+
 		var offset = particle2.Position - particle1.Position;
 		if (offset.LengthSquared() < Math.Pow(this.InteractionRadius, 2)) {
 			return offset;
 		}
+
 		return null;
 	}
 
@@ -128,11 +130,11 @@ public class Main : Control {
 				var distance = offset.Value.Length();
 				if (distance > spring.RestLength + tolerableDeformation) {
 					spring.RestLength += delta * this.PlasticityConstant *
-										 (distance - spring.RestLength - tolerableDeformation);
+					                     (distance - spring.RestLength - tolerableDeformation);
 				}
 				else if (distance < spring.RestLength - tolerableDeformation) {
 					spring.RestLength -= delta * this.PlasticityConstant *
-										 (spring.RestLength - distance - tolerableDeformation);
+					                     (spring.RestLength - distance - tolerableDeformation);
 				}
 			}
 		}
@@ -158,12 +160,11 @@ public class Main : Control {
 
 		//Applies double-density relaxations
 		foreach (var liquidParticle in this._liquidParticles) {
-			foreach (var potentialNeighbor in liquidParticle.PotentialNeighbors) {
-				var offset = this.GetOffsetIfNeighbors(liquidParticle, potentialNeighbor);
-				if (!offset.HasValue) {
-					continue;
-				}
-				var inverseNormalizedDistance = 1 - offset.Value.Length() / this.InteractionRadius;
+			foreach (var inverseNormalizedDistance in from potentialNeighbor in liquidParticle.PotentialNeighbors
+				select this.GetOffsetIfNeighbors(liquidParticle, potentialNeighbor)
+				into offset
+				where offset.HasValue
+				select 1 - offset.Value.Length() / this.InteractionRadius) {
 				liquidParticle.Density += (float) Math.Pow(inverseNormalizedDistance, 2);
 				liquidParticle.NearDensity += (float) Math.Pow(inverseNormalizedDistance, 3);
 			}
@@ -177,11 +178,12 @@ public class Main : Control {
 				if (!offset.HasValue) {
 					continue;
 				}
+
 				var inverseNormalizedDistance = 1 - offset.Value.Length() / this.InteractionRadius;
 				var displacementTerm = (float) (Math.Pow(delta, 2) *
-										   (pressure * inverseNormalizedDistance +
-											nearPressure * Math.Pow(inverseNormalizedDistance, 2)) / 2f) *
-									   offset.Value;
+					                       (pressure * inverseNormalizedDistance +
+					                        nearPressure * Math.Pow(inverseNormalizedDistance, 2)) / 2f) *
+				                       offset.Value;
 				potentialNeighbor.Position += displacementTerm;
 				selfDisplacement -= displacementTerm;
 			}
@@ -204,6 +206,11 @@ public class Main : Control {
 		foreach (var particleToRemove in this._liquidParticles.Where(liquidParticle =>
 			!this.GetViewportRect().Encloses(new Rect2(liquidParticle.Position, 10, 10))).ToList()) {
 			this._liquidParticles.Remove(particleToRemove);
+			foreach (var spring in particleToRemove.ParticleToSpring.Values.ToList()) {
+				this._springs.Remove(spring);
+				spring.Remove();
+			}
+
 			this.RemoveChild(particleToRemove);
 		}
 	}
