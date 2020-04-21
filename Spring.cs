@@ -18,16 +18,16 @@ public class Spring {
 		this.RestLength = restLength;
 		this.A = a;
 		this.B = b;
-		a.NeighborToSpring.Add(b, this);
-		b.NeighborToSpring.Add(a, this);
+		a.ParticleToSpring.Add(b, this);
+		b.ParticleToSpring.Add(a, this);
 	}
 
 	/**
 	 * Removes this spring from both the particles it is attached to
 	 */
 	public void Remove() {
-		this.A.NeighborToSpring.Remove(this.B);
-		this.B.NeighborToSpring.Remove(this.A);
+		this.A.ParticleToSpring.Remove(this.B);
+		this.B.ParticleToSpring.Remove(this.A);
 	}
 
 }

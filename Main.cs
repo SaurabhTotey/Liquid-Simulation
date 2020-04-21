@@ -57,6 +57,20 @@ public class Main : Control {
 	}
 
 	/**
+	 * Returns a vector from particle1 to particle2 if they are neighbors, null otherwise
+	 */
+	private Vector2? GetOffsetIfNeighbors(LiquidParticle particle1, LiquidParticle particle2) {
+		if (!particle1.PotentialNeighbors.Contains(particle2)) {
+			return null;
+		}
+		var offset = particle2.Position - particle1.Position;
+		if (offset.LengthSquared() < Math.Pow(this.InteractionRadius, 2)) {
+			return offset;
+		}
+		return null;
+	}
+
+	/**
 	 * Manages the particles' physics
 	 * TODO: implement https://www.researchgate.net/publication/220789321_Particle-based_viscoelastic_fluid_simulation
 	 * TODO: decide if it is better to, instead of setting Position for LiquidParticle directly, set a different field and then MoveAndCollide to the new position
@@ -65,23 +79,23 @@ public class Main : Control {
 		//Applies gravity to each particle and handles resetting particles from previous pass
 		foreach (var liquidParticle in this._liquidParticles) {
 			liquidParticle.Velocity.y += this.Gravity * delta;
-			liquidParticle.NeighborToOffset.Clear();
+			liquidParticle.PotentialNeighbors.Clear();
 			liquidParticle.Density = 0;
 			liquidParticle.NearDensity = 0;
 		}
 
-		//Finds particle neighbors for each particle TODO: consider not storing offset since it changes within this method
+		//Finds potential particle neighbors for each particle
 		for (var i = 1; i < this._liquidParticles.Count; i++) {
 			var particle1 = this._liquidParticles[i];
 			for (var j = 0; j < i; j++) {
 				var particle2 = this._liquidParticles[j];
 				var offset = particle2.Position - particle1.Position;
-				if (offset.LengthSquared() >= Math.Pow(this.InteractionRadius, 2)) {
+				if (offset.LengthSquared() >= 5 * Math.Pow(this.InteractionRadius, 2)) {
 					continue;
 				}
 
-				particle1.NeighborToOffset.Add(particle2, offset);
-				particle2.NeighborToOffset.Add(particle1, -offset);
+				particle1.PotentialNeighbors.Add(particle2);
+				particle2.PotentialNeighbors.Add(particle1);
 			}
 		}
 
@@ -94,17 +108,16 @@ public class Main : Control {
 		}
 
 		//Adds and adjusts springs TODO: consider moving this code into a Spring method
-		for (var i = 1; i < this._liquidParticles.Count; i++) {
-			var particle1 = this._liquidParticles[i];
-			for (var j = 0; j < i; j++) {
-				var particle2 = this._liquidParticles[j];
-				if (!particle1.NeighborToOffset.ContainsKey(particle2)) {
+		foreach (var particle1 in this._liquidParticles) {
+			foreach (var particle2 in particle1.PotentialNeighbors) {
+				var offset = this.GetOffsetIfNeighbors(particle1, particle2);
+				if (!offset.HasValue) {
 					continue;
 				}
 
 				Spring spring;
-				if (particle1.NeighborToSpring.ContainsKey(particle2)) {
-					spring = particle1.NeighborToSpring[particle2];
+				if (particle1.ParticleToSpring.ContainsKey(particle2)) {
+					spring = particle1.ParticleToSpring[particle2];
 				}
 				else {
 					spring = new Spring(this.InteractionRadius, particle1, particle2);
@@ -112,7 +125,7 @@ public class Main : Control {
 				}
 
 				var tolerableDeformation = this.YieldRatio * spring.RestLength;
-				var distance = particle1.NeighborToOffset[particle2].Length();
+				var distance = offset.Value.Length();
 				if (distance > spring.RestLength + tolerableDeformation) {
 					spring.RestLength += delta * this.PlasticityConstant *
 										 (distance - spring.RestLength - tolerableDeformation);
@@ -128,7 +141,7 @@ public class Main : Control {
 		foreach (var spring in from spring in this._springs
 			let a = spring.A
 			let b = spring.B
-			where (a.Position - b.Position).LengthSquared() > Math.Pow(this.InteractionRadius, 2)
+			where (a.Position - b.Position).LengthSquared() >= Math.Pow(this.InteractionRadius, 2)
 			select spring) {
 			spring.Remove();
 		}
@@ -145,8 +158,12 @@ public class Main : Control {
 
 		//Applies double-density relaxations
 		foreach (var liquidParticle in this._liquidParticles) {
-			foreach (var inverseNormalizedDistance in liquidParticle.NeighborToOffset.Select(neighborToOffset =>
-				1 - neighborToOffset.Value.Length() / this.InteractionRadius)) {
+			foreach (var potentialNeighbor in liquidParticle.PotentialNeighbors) {
+				var offset = this.GetOffsetIfNeighbors(liquidParticle, potentialNeighbor);
+				if (!offset.HasValue) {
+					continue;
+				}
+				var inverseNormalizedDistance = 1 - offset.Value.Length() / this.InteractionRadius;
 				liquidParticle.Density += (float) Math.Pow(inverseNormalizedDistance, 2);
 				liquidParticle.NearDensity += (float) Math.Pow(inverseNormalizedDistance, 3);
 			}
@@ -155,13 +172,17 @@ public class Main : Control {
 			var nearPressure = this.NearStiffness * liquidParticle.NearDensity;
 			var selfDisplacement = Vector2.Zero;
 
-			foreach (var neighborToOffset in liquidParticle.NeighborToOffset) {
-				var inverseNormalizedDistance = 1 - neighborToOffset.Value.Length() / this.InteractionRadius;
+			foreach (var potentialNeighbor in liquidParticle.PotentialNeighbors) {
+				var offset = this.GetOffsetIfNeighbors(liquidParticle, potentialNeighbor);
+				if (!offset.HasValue) {
+					continue;
+				}
+				var inverseNormalizedDistance = 1 - offset.Value.Length() / this.InteractionRadius;
 				var displacementTerm = (float) (Math.Pow(delta, 2) *
 										   (pressure * inverseNormalizedDistance +
 											nearPressure * Math.Pow(inverseNormalizedDistance, 2)) / 2f) *
-									   neighborToOffset.Value;
-				neighborToOffset.Key.Position += displacementTerm;
+									   offset.Value;
+				potentialNeighbor.Position += displacementTerm;
 				selfDisplacement -= displacementTerm;
 			}
 

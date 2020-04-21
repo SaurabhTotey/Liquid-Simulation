@@ -13,11 +13,11 @@ public class LiquidParticle : KinematicBody2D {
 	//The position of the particle before performing any sort of physics processes on it every step
 	public Vector2 OldPosition;
 
-	//A mapping of 'neighbor particles' (determined by interaction radius) to a vector pointing from this particle to that neighbor
-	public readonly Dictionary<LiquidParticle, Vector2> NeighborToOffset = new Dictionary<LiquidParticle, Vector2>();
+	//A list of potential 'neighbor particles'; is a hashset because order doesn't matter as much as checking membership
+	public readonly HashSet<LiquidParticle> PotentialNeighbors = new HashSet<LiquidParticle>();
 
-	//A mapping of 'neighbor particles' (determined by interaction radius) to a spring connecting this particle to that neighbor
-	public readonly Dictionary<LiquidParticle, Spring> NeighborToSpring = new Dictionary<LiquidParticle, Spring>();
+	//A mapping of particles to a spring connecting them to this particle
+	public readonly Dictionary<LiquidParticle, Spring> ParticleToSpring = new Dictionary<LiquidParticle, Spring>();
 
 	//The 'density' at this particle: depends on its neighbors
 	public float Density;
