@@ -6,7 +6,7 @@ using Godot;
 /**
  * All the code for the liquid simulation
  * Liquid is simulated in Lagrangian method by using discrete liquid particles
- * TODO: RestDensity, Stiffness, and NearStiffness seem like they would be better as properties of LiquidParticle
+ * TODO: RestDensity, Stiffness, NearStiffness, LinearViscosity, and QuadraticViscosity seem like they would be better as properties of LiquidParticle
  */
 public class Main : Control {
 
@@ -33,6 +33,12 @@ public class Main : Control {
 
 	//A spring's rest-length will only change if the difference between distance and rest-length is larger than this fraction of current rest-length
 	[Export] public float YieldRatio = 0.2f;
+
+	//How much linear dependence the liquid's viscosity has on velocity
+	[Export] public float LinearViscosity = 1f;
+
+	//How much quadratic dependence the liquid's viscosity has on velocity
+	[Export] public float QuadraticViscosity = 1f;
 
 	//The packed scene for the liquid particle because it is potentially instanced many times
 	private PackedScene _liquidParticleScene;
@@ -101,7 +107,27 @@ public class Main : Control {
 			}
 		}
 
-		//TODO: read about and then implement viscosity impulses
+		//Applies viscosity impulses TODO: this code is seemingly buggy; it will hopefully be fixed with collisions implemented
+		for (var i = 1; i < this._liquidParticles.Count; i++) {
+			var particle1 = this._liquidParticles[i];
+			for (var j = 0; j < i; j++) { //TODO: this looping over pairs code can possibly be abstracted
+				var particle2 = this._liquidParticles[j];
+				var offset = this.GetOffsetIfNeighbors(particle1, particle2);
+				if (!offset.HasValue) {
+					continue;
+				}
+
+				var unitOffset = offset.Value.Normalized();
+				var inwardRadialSpeed = (particle1.Velocity - particle2.Velocity).Dot(unitOffset);
+				if (inwardRadialSpeed <= 0) {
+					continue;
+				}
+
+				var impulse = (float) (delta * (1 - offset.Value.Length() / this.InteractionRadius) * (this.LinearViscosity * inwardRadialSpeed + this.QuadraticViscosity * Math.Pow(inwardRadialSpeed, 2)) / 2f) * unitOffset;
+				particle1.Velocity -= impulse;
+				particle2.Velocity += impulse;
+			}
+		}
 
 		//Saves each particle's current position and advances it to its forward euler's method velocity-based predicted position
 		foreach (var liquidParticle in this._liquidParticles) {
@@ -110,8 +136,10 @@ public class Main : Control {
 		}
 
 		//Adds and adjusts springs TODO: consider moving this code into a Spring method
-		foreach (var particle1 in this._liquidParticles) {
-			foreach (var particle2 in particle1.PotentialNeighbors) {
+		for (var i = 1; i < this._liquidParticles.Count; i++) {
+			var particle1 = this._liquidParticles[i];
+			for (var j = 0; j < i; j++) {
+				var particle2 = this._liquidParticles[j];
 				var offset = this.GetOffsetIfNeighbors(particle1, particle2);
 				if (!offset.HasValue) {
 					continue;
@@ -130,11 +158,11 @@ public class Main : Control {
 				var distance = offset.Value.Length();
 				if (distance > spring.RestLength + tolerableDeformation) {
 					spring.RestLength += delta * this.PlasticityConstant *
-					                     (distance - spring.RestLength - tolerableDeformation);
+										 (distance - spring.RestLength - tolerableDeformation);
 				}
 				else if (distance < spring.RestLength - tolerableDeformation) {
 					spring.RestLength -= delta * this.PlasticityConstant *
-					                     (spring.RestLength - distance - tolerableDeformation);
+										 (spring.RestLength - distance - tolerableDeformation);
 				}
 			}
 		}
@@ -181,9 +209,9 @@ public class Main : Control {
 
 				var inverseNormalizedDistance = 1 - offset.Value.Length() / this.InteractionRadius;
 				var displacementTerm = (float) (Math.Pow(delta, 2) *
-					                       (pressure * inverseNormalizedDistance +
-					                        nearPressure * Math.Pow(inverseNormalizedDistance, 2)) / 2f) *
-				                       offset.Value;
+										   (pressure * inverseNormalizedDistance +
+											nearPressure * Math.Pow(inverseNormalizedDistance, 2)) / 2f) *
+									   offset.Value;
 				potentialNeighbor.Position += displacementTerm;
 				selfDisplacement -= displacementTerm;
 			}
@@ -259,6 +287,7 @@ public class Main : Control {
 			}
 
 			this._liquidParticles.Clear();
+			this._springs.Clear();
 			this._blockers.Clear();
 			this.Update();
 		}

@@ -13,7 +13,7 @@ public class LiquidParticle : KinematicBody2D {
 	//The position of the particle before performing any sort of physics processes on it every step
 	public Vector2 OldPosition;
 
-	//A list of potential 'neighbor particles'; is a hashset because order doesn't matter as much as checking membership
+	//A list of potential 'neighbor particles'; is a hashset because order doesn't matter as much as checking membership TODO: a quadrant-based approach is probably more accurate and efficient
 	public readonly HashSet<LiquidParticle> PotentialNeighbors = new HashSet<LiquidParticle>();
 
 	//A mapping of particles to a spring connecting them to this particle

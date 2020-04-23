@@ -22,7 +22,8 @@ _global_script_class_icons={
 
 config/name="Liquid-Simulation"
 run/main_scene="res://UI.tscn"
-config/icon="res://icon.png"
+boot_splash/image="res://blue.png"
+config/icon="res://blue.png"
 
 [display]
 
@@ -54,4 +55,5 @@ clear_everything={
 
 [rendering]
 
+environment/default_clear_color=Color( 1, 1, 1, 1 )
 environment/default_environment="res://default_env.tres"
