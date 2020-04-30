@@ -10,6 +10,9 @@ public class LiquidParticle : KinematicBody2D {
 	//The velocity of the particle
 	public Vector2 Velocity = new Vector2();
 
+	//The position of the particle after performing physics processes on it every step
+	public Vector2 NewPosition;
+
 	//The position of the particle before performing any sort of physics processes on it every step
 	public Vector2 OldPosition;
 

@@ -4,6 +4,7 @@ using System.Linq;
 using Godot;
 
 /**
+ * TODO: I am abandoning this project. A lot of the behaviour looks like it works, but there are probably an amalgamation of a few things that breaks this horrendously
  * All the code for the liquid simulation
  * Liquid is simulated in Lagrangian method by using discrete liquid particles
  * TODO: RestDensity, Stiffness, NearStiffness, LinearViscosity, and QuadraticViscosity seem like they would be better as properties of LiquidParticle
@@ -23,10 +24,10 @@ public class Main : Control {
 	[Export] public float Stiffness = 1f;
 
 	//TODO: understand
-	[Export] public float NearStiffness = 1f;
+	[Export] public float NearStiffness = 10f;
 
 	//The spring constant that is symbolized by k in Hooke's Law
-	[Export] public float SpringConstant = 1f;
+	[Export] public float SpringConstant = 0.5f;
 
 	//A constant that controls how much a spring's rest length changes each time-step
 	[Export] public float PlasticityConstant = 5f;
@@ -35,7 +36,7 @@ public class Main : Control {
 	[Export] public float YieldRatio = 0.2f;
 
 	//How much linear dependence the liquid's viscosity has on velocity
-	[Export] public float LinearViscosity = 1f;
+	[Export] public float LinearViscosity = 10f;
 
 	//How much quadratic dependence the liquid's viscosity has on velocity
 	[Export] public float QuadraticViscosity = 1f;
@@ -54,7 +55,10 @@ public class Main : Control {
 
 	//A list of all blockers so that they can be drawn
 	private readonly List<SegmentShape2D> _blockers = new List<SegmentShape2D>();
-
+	
+	//How many frames must pass before another liquid particle can be created: is in place to reduce liquid particle creation rate
+	private long _framesUntilNextLiquidParticleCreation = 0;
+	
 	/**
 	 * Gets the LiquidParticle scene as a packed scene on startup because it will be loaded many times
 	 */
@@ -70,7 +74,7 @@ public class Main : Control {
 			return null;
 		}
 
-		var offset = particle2.Position - particle1.Position;
+		var offset = particle2.NewPosition - particle1.NewPosition;
 		if (offset.LengthSquared() < Math.Pow(this.InteractionRadius, 2)) {
 			return offset;
 		}
@@ -80,13 +84,13 @@ public class Main : Control {
 
 	/**
 	 * Manages the particles' physics
-	 * TODO: implement https://www.researchgate.net/publication/220789321_Particle-based_viscoelastic_fluid_simulation
-	 * TODO: decide if it is better to, instead of setting Position for LiquidParticle directly, set a different field and then MoveAndCollide to the new position
+	 * Implements a lot of https://www.researchgate.net/publication/220789321_Particle-based_viscoelastic_fluid_simulation
 	 */
 	public override void _PhysicsProcess(float delta) {
 		//Applies gravity to each particle and handles resetting particles from previous pass
 		foreach (var liquidParticle in this._liquidParticles) {
 			liquidParticle.Velocity.y += this.Gravity * delta;
+			liquidParticle.NewPosition = new Vector2(liquidParticle.Position);
 			liquidParticle.PotentialNeighbors.Clear();
 			liquidParticle.Density = 0;
 			liquidParticle.NearDensity = 0;
@@ -97,7 +101,7 @@ public class Main : Control {
 			var particle1 = this._liquidParticles[i];
 			for (var j = 0; j < i; j++) {
 				var particle2 = this._liquidParticles[j];
-				var offset = particle2.Position - particle1.Position;
+				var offset = particle2.NewPosition - particle1.NewPosition;
 				if (offset.LengthSquared() >= 5 * Math.Pow(this.InteractionRadius, 2)) {
 					continue;
 				}
@@ -132,7 +136,7 @@ public class Main : Control {
 		//Saves each particle's current position and advances it to its forward euler's method velocity-based predicted position
 		foreach (var liquidParticle in this._liquidParticles) {
 			liquidParticle.OldPosition = new Vector2(liquidParticle.Position);
-			liquidParticle.Position += liquidParticle.Velocity * delta;
+			liquidParticle.NewPosition += liquidParticle.Velocity * delta;
 		}
 
 		//Adds and adjusts springs TODO: consider moving this code into a Spring method
@@ -171,19 +175,19 @@ public class Main : Control {
 		foreach (var spring in from spring in this._springs
 			let a = spring.A
 			let b = spring.B
-			where (a.Position - b.Position).LengthSquared() >= Math.Pow(this.InteractionRadius, 2)
+			where (a.NewPosition - b.NewPosition).LengthSquared() >= Math.Pow(this.InteractionRadius, 2)
 			select spring) {
 			spring.Remove();
 		}
 
 		//Applies displacements to particles based on spring forces for springs that are between particles
 		foreach (var spring in this._springs) {
-			var offset = spring.B.Position - spring.A.Position;
+			var offset = spring.B.NewPosition - spring.A.NewPosition;
 			var displacementTerm = (float) (Math.Pow(delta, 2) * this.SpringConstant *
 				(1 - spring.RestLength / this.InteractionRadius) *
 				(spring.RestLength - offset.Length()) / 2f) * offset;
-			spring.A.Position -= displacementTerm;
-			spring.B.Position += displacementTerm;
+			spring.A.NewPosition -= displacementTerm;
+			spring.B.NewPosition += displacementTerm;
 		}
 
 		//Applies double-density relaxations
@@ -212,17 +216,16 @@ public class Main : Control {
 										   (pressure * inverseNormalizedDistance +
 											nearPressure * Math.Pow(inverseNormalizedDistance, 2)) / 2f) *
 									   offset.Value;
-				potentialNeighbor.Position += displacementTerm;
+				potentialNeighbor.NewPosition += displacementTerm;
 				selfDisplacement -= displacementTerm;
 			}
 
-			liquidParticle.Position += selfDisplacement;
+			liquidParticle.NewPosition += selfDisplacement;
 		}
-
-		//TODO: read about and then decide how to handle collisions: see what the paper does and figure out what Godot has and decide how to proceed
-
+		
 		//Sets each particle's velocity to be the difference in its position divided by delta
 		foreach (var liquidParticle in this._liquidParticles) {
+			liquidParticle.MoveAndSlide((liquidParticle.NewPosition - liquidParticle.Position) / delta);
 			liquidParticle.Velocity = (liquidParticle.Position - liquidParticle.OldPosition) / delta;
 		}
 	}
@@ -241,6 +244,10 @@ public class Main : Control {
 
 			this.RemoveChild(particleToRemove);
 		}
+
+		if (this._framesUntilNextLiquidParticleCreation > 0) {
+			this._framesUntilNextLiquidParticleCreation--;
+		}
 	}
 
 	/**
@@ -248,11 +255,12 @@ public class Main : Control {
 	 */
 	public override void _Input(InputEvent inputEvent) {
 		//Adds a liquid particle to the mouse's position if the left mouse button is pressed
-		if (Input.IsActionPressed("add_liquid_particle")) {
+		if (Input.IsActionPressed("add_liquid_particle") && this._framesUntilNextLiquidParticleCreation == 0) {
 			var liquidParticleInstance = (Node2D) this._liquidParticleScene.Instance();
 			liquidParticleInstance.Position = this.GetViewport().GetMousePosition();
 			this.AddChild(liquidParticleInstance);
 			this._liquidParticles.Add((LiquidParticle) liquidParticleInstance);
+			this._framesUntilNextLiquidParticleCreation = 5;
 		}
 
 		//If the right mouse button is being pressed, creates a blocker from the start of the press to the end of the press
